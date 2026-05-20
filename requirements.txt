@@ -1,0 +1,8 @@
+pandas
+mysql-connector-python
+matplotlib
+seaborn
+python-dotenv
+streamlit
+plotly
+pytest

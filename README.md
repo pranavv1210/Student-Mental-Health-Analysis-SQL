@@ -1,199 +1,262 @@
-# Analyzing Students' Mental Health in MySQL (Advanced)
+# Student Mental Health Analytics Engineering Project
 
-## 1. Project Overview & Objectives
+Production-style fresher project demonstrating end-to-end analytics engineering with MySQL, Python ETL, SQL analytics, and dashboarding.
 
-This project builds upon foundational SQL skills to conduct an in-depth analysis of hypothetical international university student mental health data using MySQL. It investigates the impact of **length of stay** on various **mental health diagnostic scores**, alongside demographic factors.
+## 1. Interview Narrative
 
-* **Core Objective:** To identify trends and correlations between students' duration at the university and their self-reported anxiety, depression, and social connectedness scores, specifically focusing on international students.
-* **Advanced Objectives & Skills Demonstrated:**
-    * **Advanced Data Modeling:** Designing and implementing a normalized relational database schema with multiple interconnected tables (`students`, `demographics`, `surveys`).
-    * **Complex SQL Queries:** Utilizing `JOIN` operations, advanced date functions (`TIMESTAMPDIFF`), Common Table Expressions (CTEs), Window Functions (`AVG() OVER (...)`), and Conditional Aggregation (`CASE` within `AVG()`) for sophisticated data extraction and analysis.
-    * **Data Visualization:** Integrating MySQL data with Python (Pandas, Matplotlib, Seaborn) to create compelling visual insights and trends.
-    * **Performance Awareness:** Conceptual understanding of database indexing for optimization.
+I built an analytics pipeline for student mental health survey analysis using a layered data architecture:
+- **Ingestion and ETL:** CSV to staging with validation, logging, and idempotent upserts.
+- **Core Data Model:** normalized MySQL schema with PK/FK constraints and quality guards.
+- **Analytics Layer:** SQL views, KPI marts, and window-function based trend analysis.
+- **Consumption Layer:** Python static visualizations and Streamlit dashboard for decision-making.
 
-***
+The project focuses on strong fundamentals: data integrity, reproducibility, query performance, and business-facing metrics.
 
-## 2. Data Model
+---
 
-The database is designed with three normalized tables to manage student, demographic, and survey data efficiently.
+## 2. Tech Stack
 
-### `students` Table
+- MySQL 8+
+- Python 3.10+
+- Pandas
+- mysql-connector-python
+- Matplotlib + Seaborn
+- Streamlit + Plotly
+- Pytest
 
-Stores core student information.
+---
 
-| Column Name      | Data Type | Description                                        |
-| :--------------- | :-------- | :------------------------------------------------- |
-| `student_id`     | `INT`     | Unique identifier (Primary Key, Auto-Increment)    |
-| `is_international` | `BOOLEAN` | `TRUE` if international, `FALSE` if domestic       |
-| `enrollment_date`| `DATE`    | Date student enrolled (used for `length_of_stay`)  |
+## 3. Architecture Diagram
 
-### `demographics` Table
+```mermaid
+flowchart LR
+    A[CSV Survey Data] --> B[ETL Extract]
+    B --> C[ETL Transform and Validation]
+    C --> D[Staging Table<br/>stg_student_mental_health_raw]
+    D --> E[Core Tables<br/>students, demographics, surveys]
+    E --> F[Analytics View<br/>v_student_mental_health]
+    F --> G[Aggregate Mart<br/>agg_yearly_mental_health]
+    G --> H[Static Charts<br/>visualizations]
+    G --> I[Streamlit Dashboard]
 
-Stores static demographic information, linked to `students`.
-
-| Column Name          | Data Type     | Description                                                          |
-| :------------------- | :------------ | :------------------------------------------------------------------- |
-| `student_id`         | `INT`         | Primary Key and Foreign Key referencing `students(student_id)`       |
-| `age`                | `INT`         | Student's age                                                        |
-| `gender`             | `VARCHAR(10)` | Student's gender (e.g., 'Male', 'Female', 'Non-binary')              |
-| `program_of_study`   | `VARCHAR(100)`| Academic program/major                                               |
-| **Constraint** |               | `FOREIGN KEY (student_id) REFERENCES students(student_id)` (CASCADE) |
-
-### `surveys` Table
-
-Stores individual survey responses, allowing multiple entries per student over time.
-
-| Column Name                | Data Type     | Description                                                          |
-| :------------------------- | :------------ | :------------------------------------------------------------------- |
-| `survey_id`                | `INT`         | Unique identifier for each survey (Primary Key, Auto-Increment)      |
-| `student_id`               | `INT`         | Foreign Key referencing `students(student_id)`                       |
-| `survey_date`              | `DATE`        | Date the survey was taken                                            |
-| `anxiety_score`            | `INT`         | Diagnostic score for anxiety (0-100, higher = more anxiety)          |
-| `depression_score`         | `INT`         | Diagnostic score for depression (0-100, higher = more depression)    |
-| `social_connectedness_score` | `INT`         | Score for social connectedness (0-100, higher = more connected)      |
-| **Constraint** |               | `FOREIGN KEY (student_id) REFERENCES students(student_id)` (CASCADE) |
-
-***
-
-## 3. Key SQL Queries & Python Integration
-
-All SQL queries are executed against a MySQL database. The primary analysis is then fed into a Python script for visualization.
-
-### Database and Table Creation (SQL)
-
-```sql
--- Drop existing tables (if any) to ensure clean setup
-DROP TABLE IF EXISTS surveys;
-DROP TABLE IF EXISTS demographics;
-DROP TABLE IF EXISTS students;
-
--- Create students table
-CREATE TABLE students (
-    student_id INT PRIMARY KEY AUTO_INCREMENT,
-    is_international BOOLEAN,
-    enrollment_date DATE
-);
-
--- Create demographics table with Foreign Key to students
-CREATE TABLE demographics (
-    student_id INT PRIMARY KEY, -- FK to students
-    age INT,
-    gender VARCHAR(10),
-    program_of_study VARCHAR(100), -- From 'What is your course?'
-    CONSTRAINT fk_student_demographics FOREIGN KEY (student_id) REFERENCES students(student_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- Create surveys table with Foreign Key to students and new fields
-CREATE TABLE surveys (
-    survey_id INT PRIMARY KEY AUTO_INCREMENT,
-    student_id INT, -- FK to students
-    survey_date DATETIME, -- From 'Timestamp', now DATETIME
-    year_of_study INT, -- From 'Your current year of Study'
-    cypa_range VARCHAR(50), -- From 'What is your CGPA?'
-    marital_status VARCHAR(20), -- From 'Marital status'
-    anxiety_score INT,        -- 'Yes'/'No' converted to 1/0
-    depression_score INT,     -- 'Yes'/'No' converted to 1/0
-    panic_attack_score INT,   -- 'Yes'/'No' converted to 1/0 (NEW)
-    sought_treatment INT,     -- 'Yes'/'No' converted to 1/0 (NEW)
-    CONSTRAINT fk_student_surveys FOREIGN KEY (student_id) REFERENCES students(student_id)
-        ON DELETE CASCADE ON UPDATE CASCADE
-);
-````
-
-### Sample Data Insertion (SQL)
-
-Sample data for `students`, `demographics`, and `surveys` tables is inserted to populate the database and enable comprehensive analysis. *(Full INSERT statements are omitted for brevity in this README but are available in the project's SQL files, e.g., `insert_data.sql`.)*
-
-### Core Advanced Analysis Query (SQL using CTEs, JOINS, Date Functions, Conditional Aggregation)
-
-This query pulls data from all three tables, dynamically calculates `length_of_stay_months`, filters for international students, and aggregates average mental health scores, including a gender-based breakdown, grouped by length of stay.
-
-```sql
-USE student_mental_health;
-
-WITH StudentSurveyData AS (
-    SELECT
-        s.student_id,
-        d.age,
-        d.gender,
-        d.program_of_study,
-        su.survey_date,
-        su.year_of_study,
-        su.cypa_range, -- Corrected column name from 'cgpa_range' in previous iterations
-        su.marital_status,
-        su.anxiety_score,
-        su.depression_score,
-        su.panic_attack_score,
-        su.sought_treatment
-    FROM
-        students s
-    INNER JOIN
-        demographics d ON s.student_id = d.student_id
-    INNER JOIN
-        surveys su ON s.student_id = su.student_id
-)
-SELECT
-    year_of_study,
-    COUNT(DISTINCT student_id) AS number_of_students,
-    AVG(anxiety_score) AS average_anxiety_score,
-    AVG(depression_score) AS average_depression_score,
-    AVG(panic_attack_score) AS average_panic_attack_score,
-    -- AVG(social_connectedness_score) AS average_social_connectedness_score, -- Removed as this column is not in the dataset
-    AVG(CASE WHEN gender = 'Male' THEN anxiety_score END) AS avg_anxiety_male,
-    AVG(CASE WHEN gender = 'Female' THEN anxiety_score END) AS avg_anxiety_female,
-    AVG(CASE WHEN sought_treatment = 1 THEN anxiety_score END) AS avg_anxiety_sought_treatment,
-    AVG(CASE WHEN sought_treatment = 0 THEN anxiety_score END) AS avg_anxiety_not_sought_treatment
-FROM
-    StudentSurveyData
-GROUP BY
-    year_of_study
-ORDER BY
-    year_of_study;
+    J[ETL Audit<br/>etl_run_audit] --> C
+    J --> D
+    J --> E
 ```
 
-### Data Visualization (Python)
+---
 
+## 4. Project Structure
 
-A Python script (`visualize_data.py`) connects to the MySQL database, executes the core analysis query, loads the results into a Pandas DataFrame, and generates compelling visualizations using Matplotlib and Seaborn. These plots are saved as PNG files and displayed below:
-
-### Visualizations
-
-#### Mental Health Scores by Year
-![Mental Health Scores by Year](mental_health_scores_by_year.png)
-
-#### Anxiety by Gender and Year
-![Anxiety by Gender and Year](anxiety_by_gender_and_year.png)
-
-#### Anxiety by Treatment and Year
-![Anxiety by Treatment and Year](anxiety_by_treatment_and_year.png)
-
-#### Mental Health Scores by Stay
-![Mental Health Scores by Stay](mental_health_scores_by_stay.png)
-
------
-
-
-
-## 4\. Potential Challenges & Learning
-
-  * **Database Normalization:** Designing and implementing a multi-table schema with correct primary and foreign key relationships for data integrity.
-  * **Complex SQL:** Mastering `JOIN` clauses, dynamic date calculations (`TIMESTAMPDIFF`), and advanced aggregation techniques (`CASE` statements within `AVG()`, CTEs, and Window Functions) for nuanced analysis.
-  * **Data Integration & Visualization:** Connecting MySQL to Python, querying data programmatically, and using data science libraries (Pandas, Matplotlib, Seaborn) to transform raw data into insightful visualizations.
-  * **Data Interpretation:** Drawing meaningful conclusions from aggregated and visualized data, especially with synthetic datasets.
-
------
-
-## 5\. Real-World Considerations & Future Enhancements
-
-  * **Data Privacy:** In a real-world scenario, student mental health data is highly sensitive. Strict anonymization protocols and adherence to privacy regulations (e.g., GDPR, FERPA) would be paramount.
-  * **Limitations of Synthetic Data:** The findings in this project are based on a small, synthetic dataset. Real-world insights would require a larger, validated, and ethically sourced dataset.
-  * **Scalability:** For much larger datasets, optimizing queries with appropriate **indexing** (e.g., on `is_international`, `survey_date`, `enrollment_date`) and analyzing query performance using `EXPLAIN` would be critical.
-
-**Future Enhancements:**
-
-  * **Predictive Modeling:** Use Python's machine learning libraries (e.g., scikit-learn) to build models that predict mental health risk based on demographic factors and length of stay.
-  * **Interactive Dashboard:** Create an interactive web dashboard (e.g., using Dash or Streamlit in Python, or a BI tool like Tableau/Power BI) to allow users to explore the data dynamically.
-  * **Expanded Data:** Incorporate more granular data, such as academic performance, financial aid status, or participation in campus activities, to enrich the analysis.
-  * **API Development:** Build a simple API using a framework like Flask or FastAPI in Python to expose the analytical results, allowing other applications to consume this data.
+```text
+project/
+¦
++-- config/
+¦   +-- settings.py
+¦   +-- logger.py
+¦
++-- etl/
+¦   +-- extract.py
+¦   +-- transform.py
+¦   +-- load.py
+¦
++-- sql/
+¦   +-- 01_schema.sql
+¦   +-- 02_indexes.sql
+¦   +-- 03_analytics.sql
+¦   +-- 04_data_quality_checks.sql
+¦
++-- dashboard/
+¦   +-- app.py
++-- visualizations/
+¦   +-- build_charts.py
++-- tests/
+¦   +-- test_transform.py
++-- run_etl.py
++-- requirements.txt
++-- .env.example
 ```
+
+Why this structure is better:
+- **Separation of concerns:** extraction, transformation, loading, modeling, analytics, and presentation are isolated.
+- **Maintainability:** easier debugging and targeted updates.
+- **Scalability:** ready for orchestration and scheduled refresh workflows.
+
+---
+
+## 5. Data Model
+
+### Core Tables
+
+1. `students`
+- Grain: one row per student record hash.
+- Keys: `student_id` (PK), `record_hash` (UNIQUE).
+
+2. `demographics`
+- Grain: one row per student.
+- Keys: `student_id` (PK/FK to students).
+
+3. `surveys`
+- Grain: one survey response per student per timestamp.
+- Keys: `survey_id` (PK), unique key `(student_id, survey_date)`.
+
+### Staging and Metadata
+
+4. `stg_student_mental_health_raw`
+- Raw cleaned landing table with constraints and ingestion timestamp.
+
+5. `etl_run_audit`
+- ETL observability: status, start/end time, row counts, error message.
+
+### Analytics Layer
+
+6. `v_student_mental_health`
+- Reusable analysis view joining core entities.
+
+7. `agg_yearly_mental_health`
+- Materialized-style aggregate table for fast dashboard reads.
+
+---
+
+## 6. ETL Design (Production-Aware)
+
+Implemented capabilities:
+- Environment-based secrets (`.env` + `config/settings.py`)
+- Structured rotating logs (`logs/etl.log`)
+- Input schema validation
+- Data-domain validation (age bounds, binary flags)
+- Idempotent loading (`record_hash` + upsert)
+- Incremental insertion into `surveys` using anti-join
+- ETL run metadata and failure capture
+- Batched inserts via `executemany`
+
+---
+
+## 7. SQL Analytics Highlights
+
+- KPI prevalence metrics by year of study
+- Conditional aggregation by gender/treatment
+- Window functions:
+  - rolling 3-point moving average
+  - year-over-year delta with `LAG`
+  - risk ranking via `DENSE_RANK`
+- Aggregate refresh query for `agg_yearly_mental_health`
+- `EXPLAIN FORMAT=TREE` pattern for optimization review
+
+---
+
+## 8. Data Quality Checks
+
+`sql/04_data_quality_checks.sql` includes:
+- Null checks on critical dimensions
+- Binary domain checks
+- Referential integrity orphan checks
+- Freshness (ingestion latency hours)
+- Duplicate grain checks
+
+---
+
+## 9. Runbook
+
+## 9.1 Prerequisites
+
+1. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Create `.env` from template:
+```bash
+cp .env.example .env
+```
+On Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
+```
+
+3. Update `.env` with your MySQL credentials.
+
+## 9.2 Database Setup
+
+Run in order:
+1. `sql/01_schema.sql`
+2. `sql/02_indexes.sql`
+3. `sql/03_analytics.sql`
+4. `sql/04_data_quality_checks.sql`
+
+## 9.3 Run ETL
+
+```bash
+python run_etl.py
+```
+
+## 9.4 Build Charts
+
+```bash
+python visualizations/build_charts.py
+```
+
+## 9.5 Launch Dashboard
+
+```bash
+streamlit run dashboard/app.py
+```
+
+## 9.6 Run Tests
+
+```bash
+pytest -q
+```
+
+---
+
+## 10. Indexing Strategy
+
+Key indexes:
+- `surveys(student_id, survey_date)` for grain uniqueness and lookup.
+- `surveys(year_of_study, sought_treatment)` for analytics filtering/grouping.
+- `demographics(gender, program_of_study)` for segmentation.
+- `stg_student_mental_health_raw(ingestion_ts)` for freshness checks.
+
+Tradeoff: read performance improves, writes become slightly heavier.
+
+---
+
+## 11. Business Value
+
+University decision support use-cases:
+- Identify high-risk student cohorts by year/program/gender.
+- Track treatment uptake and mental-health prevalence trends.
+- Prioritize outreach and counseling capacity planning.
+
+Suggested KPIs:
+- anxiety/depression/panic prevalence (%)
+- treatment uptake (%)
+- composite risk index by program
+- year-over-year changes
+
+---
+
+## 12. Known Limitations
+
+- Dataset is small (about 100 rows), so statistical confidence is limited.
+- Survey data is observational; avoid causal claims.
+- Current project is single-source CSV; multi-source integration is future work.
+
+---
+
+## 13. Realistic Next Steps
+
+1. Add retry with exponential backoff for DB connectivity.
+2. Add CI workflow (lint + tests + SQL checks).
+3. Add Docker Compose for reproducible local setup.
+4. Add Power BI connector to `agg_yearly_mental_health`.
+5. Add basic FastAPI endpoint for serving KPIs.
+
+---
+
+## 14. Interview Positioning (Short)
+
+Use this line:
+
+> Built an end-to-end analytics engineering pipeline with idempotent ETL, normalized modeling, indexed SQL analytics, quality checks, and dashboard-ready KPI marts for student mental health trend analysis.
