@@ -1,7 +1,5 @@
 # Student Mental Health Analytics Engineering Project
 
-Production-style fresher project demonstrating end-to-end analytics engineering with MySQL, Python ETL, SQL analytics, and dashboarding.
-
 I built an analytics pipeline for student mental health survey analysis using a layered data architecture:
 - **Ingestion and ETL:** CSV to staging with validation, logging, and idempotent upserts.
 - **Core Data Model:** normalized MySQL schema with PK/FK constraints and quality guards.
