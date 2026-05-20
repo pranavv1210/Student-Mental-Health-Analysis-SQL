@@ -2,8 +2,6 @@
 
 Production-style fresher project demonstrating end-to-end analytics engineering with MySQL, Python ETL, SQL analytics, and dashboarding.
 
-## 1. Interview Narrative
-
 I built an analytics pipeline for student mental health survey analysis using a layered data architecture:
 - **Ingestion and ETL:** CSV to staging with validation, logging, and idempotent upserts.
 - **Core Data Model:** normalized MySQL schema with PK/FK constraints and quality guards.
@@ -50,28 +48,28 @@ flowchart LR
 
 ```text
 project/
-¦
+Â¦
 +-- config/
-¦   +-- settings.py
-¦   +-- logger.py
-¦
+Â¦   +-- settings.py
+Â¦   +-- logger.py
+Â¦
 +-- etl/
-¦   +-- extract.py
-¦   +-- transform.py
-¦   +-- load.py
-¦
+Â¦   +-- extract.py
+Â¦   +-- transform.py
+Â¦   +-- load.py
+Â¦
 +-- sql/
-¦   +-- 01_schema.sql
-¦   +-- 02_indexes.sql
-¦   +-- 03_analytics.sql
-¦   +-- 04_data_quality_checks.sql
-¦
+Â¦   +-- 01_schema.sql
+Â¦   +-- 02_indexes.sql
+Â¦   +-- 03_analytics.sql
+Â¦   +-- 04_data_quality_checks.sql
+Â¦
 +-- dashboard/
-¦   +-- app.py
+Â¦   +-- app.py
 +-- visualizations/
-¦   +-- build_charts.py
+Â¦   +-- build_charts.py
 +-- tests/
-¦   +-- test_transform.py
+Â¦   +-- test_transform.py
 +-- run_etl.py
 +-- requirements.txt
 +-- .env.example
@@ -254,9 +252,4 @@ Suggested KPIs:
 5. Add basic FastAPI endpoint for serving KPIs.
 
 ---
-
-## 14. Interview Positioning (Short)
-
-Use this line:
-
 > Built an end-to-end analytics engineering pipeline with idempotent ETL, normalized modeling, indexed SQL analytics, quality checks, and dashboard-ready KPI marts for student mental health trend analysis.
